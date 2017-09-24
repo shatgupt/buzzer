@@ -7,7 +7,7 @@
     <style type="text/css">
       body {
         width: 90%;
-        max-width: 600px;
+        max-width: 800px;
         margin: 0 auto;
       }
 
@@ -75,7 +75,7 @@
         margin-bottom: 15px;
       }
 
-      @media screen and (min-width: 600px) {
+      @media screen and (min-width: 800px) {
         .grid .w-1of3 {
           width: calc(100%/3);
         }
@@ -84,7 +84,7 @@
         }
       }
 
-      @media screen and (max-width: 600px) {
+      @media screen and (max-width: 800px) {
         .grid .w-1of3 {
           width: 100%;
         }
@@ -286,6 +286,9 @@
         socket.on('countdown-started', (data) => {
           initializeCountdown(clock, new Date(Date.now() + (parseInt(data.sec) * 1000)))
           // clock.classList.remove('inactive')
+          // set current state to opposite of what countover action will do
+          if (data.action !== 'activate-buzzer') updateState('active')
+          else updateState('inactive')
         })
 
         window.addEventListener('countdownover', () => {
