@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>Buzzer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=3">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
     <link rel="icon" type="image/png" href="icon.png">
     <!-- <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Volkhov:bold&text=BUZZED"> -->
     <style type="text/css">
@@ -17,9 +17,15 @@
         src: local('Volkhov Bold'), local('Volkhov-Bold'), url('Volkhov.woff2') format('woff2');
       }
 
+      html {
+        height: 100%;
+      }
+
       body {
+        height: 100%;
         margin: 0 auto;
-        padding: 5vmin 0;
+        padding-bottom: 6%;
+        box-sizing: border-box;
         text-align: center;
         font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
       }
@@ -62,6 +68,16 @@
         padding: .6rem .75rem;
       }
 
+      .grid {
+        height: 100%;
+        display: flex;
+        align-items: center;
+      }
+
+      .grid-cell {
+        flex: 1;
+      }
+
       .buzzer {
         position: relative;
         top: 0;
@@ -79,7 +95,7 @@
       }
 
       .buzzer:active, .buzzed, .buzzed:active {
-        top: 2vmin;
+        top: 4vmin;
         color: #be0303;
         background: #ff2727;
         box-shadow: 0px 3px 0px rgba(219,31,5,1), 0px 3px 6px rgba(0,0,0,.9);
@@ -108,20 +124,24 @@
     </style>
   </head>
   <body>
-    <div id="user-input">
-      <h2>Enter Event</h2>
-      <label>Name:</label>
-      <input type="text" id="user-name" placeholder="Name" title="Name of the user.">
-      <label>Password:</label>
-      <input type="password" id="event-pass" placeholder="Password" title="Password to enter event. Keep empty for no password.">
-      <input type="button" id="join" value="Join">
+    <div id="user-input" class="grid">
+      <div class="grid-cell">
+        <h2>Enter Event</h2>
+        <label>Name:</label>
+        <input type="text" id="user-name" placeholder="Name" title="Name of the user.">
+        <label>Password:</label>
+        <input type="password" id="event-pass" placeholder="Password" title="Password to enter event. Keep empty for no password.">
+        <input type="button" id="join" value="Join">
+      </div>
     </div>
 
-    <div id="buzz-container" class="hide">
+    <div id="buzz-container" class="grid hide">
       <!-- http://soundbible.com/1542-Air-Horn.html -->
       <audio id="buzzer-audio" src="buzzer.mp3"></audio>
-      <div class="buzzer">
-        <p>BUZZ</p>
+      <div class="grid-cell">
+        <div class="buzzer">
+          <p>BUZZ</p>
+        </div>
       </div>
     </div>
 
@@ -175,6 +195,20 @@
           buzzer.classList.add('buzzed')
           // buzzerText.textContent = 'BUZZED'
           buzzer.title = 'Buzzer Inactive'
+        })
+
+        socket.on('countdown-started', (data) => {
+          // set current state to opposite of what countover action will do
+          buzzerActive = (data.action !== 'activate-buzzer')
+          if (buzzerActive) {
+            buzzer.classList.remove('buzzed')
+            buzzerText.textContent = 'BUZZ'
+            buzzer.title = 'Buzzer Active'
+          } else {
+            buzzer.classList.add('buzzed')
+            // buzzerText.textContent = 'BUZZED'
+            buzzer.title = 'Buzzer Inactive'
+          }
         })
 
         socket.on('event-restarted', () => {
