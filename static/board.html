@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Buzzer Board</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="icon.png">
+    <style type="text/css">
+      body {
+        font-family: serif;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .hide {
+        display: none !important;
+      }
+      .active {
+        color: forestgreen;
+      }
+      .inactive {
+        color: red;
+      }
+
+      #buzzer-state {
+        font-size: 13vw;
+      }
+
+      #clock-container {
+        font-size: 31vw;
+      }
+
+      #buzz-list {
+        margin: 0;
+        padding: 0;
+        font-size: 8vw;
+        list-style-position: inside;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hide">
+      <h1>Buzz List</h1>
+      <ol id="buzz-list"></ol>
+    </div>
+
+    <h1 id="buzzer-state">Event Started</h1>
+
+    <div class="hide">
+      <h1>Countdown Clock</h1>
+      <div id="clock-container">
+        <span class="minutes">00</span>
+        <span>:</span>
+        <span class="seconds">00</span>
+      </div>
+    </div>
+
+    <script type="text/javascript" src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript">
+      const $ = s => document.querySelector(s)
+      const show = elem => elem.classList.remove('hide')
+      const hide = elem => elem.classList.add('hide')
+
+      const buzzerState = $('#buzzer-state')
+      const buzzList = $('#buzz-list')
+      const buzzListContainer = buzzList.parentNode
+      const clock = $('#clock-container')
+      const countdownContainer = clock.parentNode
+      const toggleStates = {'active': 'inactive', 'inactive': 'active'}
+      let timeInterval
+      
+      const updateState = (state) => {
+        buzzerState.textContent = 'Buzzers ' + state
+        buzzerState.classList.add(state)
+        buzzerState.classList.remove(toggleStates[state], 'hide')
+      }
+
+      const initializeCountdown = (clockElem, endtime) => {
+        clearInterval(timeInterval)
+
+        const minute1 = 60
+        const hour1 = 60 * minute1
+        const day1 = 24 * hour1
+        const getTimeRemaining = (secondsRemaining) => {
+          // const days = Math.floor((secondsRemaining) / day1)
+          // const hours = Math.floor((secondsRemaining % day1) / hour1)
+          const minutes = Math.floor((secondsRemaining % hour1) / minute1)
+          const seconds = secondsRemaining % minute1
+          return {
+            // 'days': days,
+            // 'hours': hours,
+            'minutes': minutes,
+            'seconds': seconds
+          }
+        }
+
+        // const daysSpan = clockElem.querySelector('.days')
+        // const hoursSpan = clockElem.querySelector('.hours')
+        const minutesSpan = clockElem.querySelector('.minutes')
+        const secondsSpan = clockElem.querySelector('.seconds')
+        let secondsRemaining = Math.floor((Date.parse(endtime) - Date.now())/1000)
+        const updateClock = () => {
+          const t = getTimeRemaining(secondsRemaining)
+          // daysSpan.textContent = t.days
+          // hoursSpan.textContent = ('0' + t.hours).slice(-2)
+          minutesSpan.textContent = ('0' + t.minutes).slice(-2)
+          secondsSpan.textContent = ('0' + t.seconds).slice(-2)
+
+          if (secondsRemaining <= 0) {
+            clearInterval(timeInterval)
+            window.dispatchEvent(new CustomEvent('countdownover'))
+          } else {
+            secondsRemaining -= 1
+          }
+        }
+
+        updateClock()
+        timeInterval = setInterval(updateClock, 1000)
+      }
+
+      const socket = io.connect(location.origin + '/board', {
+        transports: ['websocket'],
+        upgrade: false,
+        forceNew : true
+      })
+
+      socket.on('error', (err) => {
+        console.error('WebSocket error', err)
+      })
+      socket.on('connect', () => {
+        console.log('Connected to server')
+        // socket.emit('board-connected')
+      })
+      socket.on('disconnect', () => {
+        console.warn('Disconnected from server')
+      })
+
+      socket.on('current-state', (state) => {
+        if (state.active) {
+          if (state.buzzes.length > 0) {
+            buzzList.innerHTML = ''
+            let item
+            state.buzzes.forEach((user) => {
+              item = document.createElement('li')
+              item.textContent = user
+              buzzList.appendChild(item)
+            })
+            hide(buzzerState)
+            hide(countdownContainer)
+            show(buzzListContainer)
+          } else {
+            updateState('active')
+          }
+        }
+      })
+
+      socket.on('buzzer-activated', () => {
+        buzzList.innerHTML = ''
+        updateState('active')
+        hide(buzzListContainer)
+        hide(countdownContainer)
+        show(buzzerState)
+      })
+
+      socket.on('buzzer-deactivated', () => {
+        updateState('inactive')
+        hide(buzzListContainer)
+        hide(countdownContainer)
+        show(buzzerState)
+      })
+
+      socket.on('event-restarted', () => {
+        buzzList.innerHTML = ''
+        buzzerState.textContent = 'Event Started'
+        buzzerState.classList.remove('active', 'inactive')
+        hide(buzzListContainer)
+        hide(countdownContainer)
+        show(buzzerState)
+      })
+
+      socket.on('user-buzzed', (buzzerName) => {
+        const buzz = document.createElement('li')
+        buzz.textContent = buzzerName
+        buzzList.appendChild(buzz)
+        hide(buzzerState)
+        hide(countdownContainer)
+        show(buzzListContainer)
+      })
+
+      let countoverAction
+      socket.on('countdown-started', (data) => {
+        countoverAction = data.action
+        initializeCountdown(clock, new Date(Date.now() + (parseInt(data.sec) * 1000)))
+        // clock.classList.remove('inactive')
+        hide(buzzerState)
+        hide(buzzListContainer)
+        show(countdownContainer)
+      })
+
+      window.addEventListener('countdownover', () => {
+        socket.emit(countoverAction)
+        // clock.classList.add('inactive')
+      }, true)
+    </script>
+  </body>
+</html>

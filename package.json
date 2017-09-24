@@ -1,0 +1,11 @@
+{
+  "name": "buzzer",
+  "version": "1.0.0",
+  "description": "Simple buzzer for quizzes",
+  "main": "index.js",
+  "author": "Shatrughn Gupta",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io": "2.0.3"
+  }
+}

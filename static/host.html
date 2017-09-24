@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Buzzer Host</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="icon.png">
+    <style type="text/css">
+      body {
+        width: 90%;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      h1, h2 {
+        text-align: center;
+        text-transform: capitalize;
+      }
+
+      ol {
+        font-size: 22px;
+        padding: 0;
+        margin: 0;
+        list-style-position: inside;
+      }
+
+      input {
+        padding: 10px 0;
+        font-size: 16px;
+        line-height: 1.25;
+        box-sizing: border-box;
+        text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.25);
+      }
+
+      input[type=button] {
+        color: white;
+        cursor: pointer;
+        background-color: #3995f9;
+      }
+
+      input[type=button]:hover, input[type=button]:focus {
+        background-color: #4cb0f9;
+      }
+
+      #pass-input input {
+        width: 100%;
+        margin-bottom: 15px;
+      }
+
+      .hide {
+        display: none !important;
+      }
+      .active {
+        color: forestgreen;
+      }
+      .inactive {
+        color: red;
+      }
+
+      #clock-container {
+        line-height: 39px;
+        font-size: 26px;
+        text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.25);
+        box-sizing: border-box;
+      }
+
+      .grid {
+        display: flex;
+        flex-wrap: wrap;
+      }
+
+      .grid .w-1of3, .grid .w-1of2 {
+        flex: 0 0 auto;
+        margin-bottom: 15px;
+      }
+
+      @media screen and (min-width: 600px) {
+        .grid .w-1of3 {
+          width: calc(100%/3);
+        }
+        .grid .w-1of2 {
+          width: 50%;
+        }
+      }
+
+      @media screen and (max-width: 600px) {
+        .grid .w-1of3 {
+          width: 100%;
+        }
+        .grid .w-1of2 {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Buzzer Host</h1>
+    <div id="pass-input">
+      <input type="password" id="host-pass" placeholder="Password" title="Password to host event. Keep empty for no password.">
+      <input type="button" id="enter-host" value="Enter">
+    </div>
+
+    <div id="host-panel" class="hide">
+      <h2 id="buzzer-state">Event Started</h2>
+      <div class="grid">
+        <input type="button" class="w-1of3 buzzer-control" id="activate-buzzer" value="Activate Buzzer">
+        <input type="button" class="w-1of3 buzzer-control" id="deactivate-buzzer" value="Deactivate Buzzer">
+        <input type="button" class="w-1of3 buzzer-control" id="restart-event" value="Restart Event">
+      </div>
+
+      <h2>Countdown</h2>
+      <div class="grid">
+        <input type="text" class="w-1of3" id="count-to" placeholder="Countdown Seconds" title="Seconds to countdown" value="20">
+        <input type="button" class="w-1of3" id="start-countdown" value="Start Countdown">
+        <div class="w-1of3" id="clock-container" title="Time after which buzzers will be activated">
+          <span class="minutes">00</span>
+          <span>:</span>
+          <span class="seconds">00</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="w-1of2">
+          <h2>Buzz List</h2>
+          <ol id="buzz-list">
+          </ol>
+        </div>
+        <div class="w-1of2">
+          <h2>User List</h2>
+          <ol id="user-list">
+          </ol>
+        </div>
+      </div>
+    </div>
+    <script type="text/javascript" src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript">
+      const $ = s => document.querySelector(s)
+      const $$ = s => document.querySelectorAll(s)
+
+      const buzzerState = $('#buzzer-state')
+      const buzzList = $('#buzz-list')
+      const userList = $('#user-list')
+      const clock = $('#clock-container')
+      const toggleStates = {'active': 'inactive', 'inactive': 'active'}
+      let timeInterval
+
+      const updateState = (state) => {
+        buzzerState.textContent = 'Buzzers ' + state
+        buzzerState.classList.add(state)
+        buzzerState.classList.remove(toggleStates[state])
+      }
+
+      const initializeCountdown = (clockElem, endtime) => {
+        clearInterval(timeInterval)
+
+        const minute1 = 60
+        const hour1 = 60 * minute1
+        const day1 = 24 * hour1
+        const getTimeRemaining = (secondsRemaining) => {
+          // const days = Math.floor((secondsRemaining) / day1)
+          // const hours = Math.floor((secondsRemaining % day1) / hour1)
+          const minutes = Math.floor((secondsRemaining % hour1) / minute1)
+          const seconds = secondsRemaining % minute1
+          return {
+            // 'days': days,
+            // 'hours': hours,
+            'minutes': minutes,
+            'seconds': seconds
+          }
+        }
+
+        // const daysSpan = clockElem.querySelector('.days')
+        // const hoursSpan = clockElem.querySelector('.hours')
+        const minutesSpan = clockElem.querySelector('.minutes')
+        const secondsSpan = clockElem.querySelector('.seconds')
+        let secondsRemaining = Math.floor((Date.parse(endtime) - Date.now())/1000)
+        const updateClock = () => {
+          const t = getTimeRemaining(secondsRemaining)
+          // daysSpan.textContent = t.days
+          // hoursSpan.textContent = ('0' + t.hours).slice(-2)
+          minutesSpan.textContent = ('0' + t.minutes).slice(-2)
+          secondsSpan.textContent = ('0' + t.seconds).slice(-2)
+
+          if (secondsRemaining <= 0) {
+            clearInterval(timeInterval)
+            window.dispatchEvent(new CustomEvent('countdownover'))
+          } else {
+            secondsRemaining -= 1
+          }
+        }
+
+        updateClock()
+        timeInterval = setInterval(updateClock, 1000)
+      }
+
+      $('#enter-host').addEventListener('click', () => {
+        const socket = io.connect(location.origin + '/host', {
+          query: {
+            pass: $('#host-pass').value
+          },
+          transports: ['websocket'],
+          upgrade: false,
+          forceNew : true
+        })
+
+        socket.on('error', (err) => {
+          console.error('WebSocket error', err)
+        })
+        socket.on('connect', () => {
+          console.log('Connected to server')
+          $('#pass-input').classList.add('hide')
+          $('#host-panel').classList.remove('hide')
+          // socket.emit('host-connected')
+        })
+        socket.on('disconnect', () => {
+          console.warn('Disconnected from server')
+        })
+
+        socket.on('current-state', (state) => {
+          console.log('Updating state')
+          if (state.active) updateState('active')
+          userList.innerHTML = ''
+          buzzList.innerHTML = ''
+          let item
+          state.users.forEach((user) => {
+            item = document.createElement('li')
+            item.textContent = user
+            userList.appendChild(item)
+          })
+          state.buzzes.forEach((user) => {
+            item = document.createElement('li')
+            item.textContent = user
+            buzzList.appendChild(item)
+          })
+        })
+
+        $$('.buzzer-control').forEach(el => {
+          el.addEventListener('click', () => {
+            socket.emit(el.id, true) // override true for these actions
+          })
+        })
+
+        socket.on('buzzer-activated', () => {
+          console.log('Buzzer active')
+          buzzList.innerHTML = ''
+          updateState('active')
+        })
+
+        socket.on('buzzer-deactivated', () => {
+          console.log('Buzzer inactive')
+          updateState('inactive')
+        })
+
+        socket.on('event-restarted', () => {
+          console.log('Event restarted')
+          buzzList.innerHTML = ''
+          userList.innerHTML = ''
+          buzzerState.textContent = 'Event Started'
+          buzzerState.classList.remove('active', 'inactive')
+        })
+
+        socket.on('user-joined', (userName) => {
+          console.log(userName, 'joined')
+          const user = document.createElement('li')
+          user.textContent = userName
+          userList.appendChild(user)
+        })
+
+        socket.on('user-buzzed', (buzzerName) => {
+          console.log(buzzerName, 'buzzed')
+          const buzz = document.createElement('li')
+          buzz.textContent = buzzerName
+          buzzList.appendChild(buzz)
+        })
+
+        // TODO: activate/deactive on countdown over
+        let countoverAction = 'activate-buzzer'
+        $('#start-countdown').addEventListener('click', () => {
+          socket.emit('start-countdown', {
+            sec: $('#count-to').value,
+            action: countoverAction
+          })
+        })
+
+        socket.on('countdown-started', (data) => {
+          initializeCountdown(clock, new Date(Date.now() + (parseInt(data.sec) * 1000)))
+          // clock.classList.remove('inactive')
+        })
+
+        window.addEventListener('countdownover', () => {
+          socket.emit(countoverAction)
+          // clock.classList.add('inactive')
+        }, true)
+      })
+    </script>
+  </body>
+</html>
